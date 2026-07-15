@@ -1,0 +1,8 @@
+[package]
+name = "xma2-rs"
+version = "0.1.0"
+edition = "2024"
+description = "Pure-Rust XMA2 audio decoder (WMA Pro core ported from FFmpeg, LGPL-2.1+)"
+license = "LGPL-2.1-or-later"
+
+[dependencies]
