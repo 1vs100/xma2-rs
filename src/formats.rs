@@ -53,6 +53,19 @@ impl WaveFormatEx {
         })
     }
 
+    /// Serialize to the 18-byte on-disk little-endian layout.
+    pub fn to_le_bytes(&self) -> [u8; Self::SIZE] {
+        let mut b = [0u8; Self::SIZE];
+        b[0..2].copy_from_slice(&self.w_format_tag.to_le_bytes());
+        b[2..4].copy_from_slice(&self.n_channels.to_le_bytes());
+        b[4..8].copy_from_slice(&self.n_samples_per_sec.to_le_bytes());
+        b[8..12].copy_from_slice(&self.n_avg_bytes_per_sec.to_le_bytes());
+        b[12..14].copy_from_slice(&self.n_block_align.to_le_bytes());
+        b[14..16].copy_from_slice(&self.w_bits_per_sample.to_le_bytes());
+        b[16..18].copy_from_slice(&self.cb_size.to_le_bytes());
+        b
+    }
+
     pub fn swap_bytes(&self) -> Self {
         WaveFormatEx {
             w_format_tag: self.w_format_tag.swap_bytes(),
@@ -88,6 +101,23 @@ impl Xma2WaveFormatEx {
             encoder_version: b[31],
             block_count: u16le(32),
         })
+    }
+
+    /// Serialize to the 34-byte on-disk little-endian layout.
+    pub fn to_le_bytes(&self) -> [u8; Self::SIZE] {
+        let mut b = [0u8; Self::SIZE];
+        b[0..2].copy_from_slice(&self.num_streams.to_le_bytes());
+        b[2..6].copy_from_slice(&self.channel_mask.to_le_bytes());
+        b[6..10].copy_from_slice(&self.samples_encoded.to_le_bytes());
+        b[10..14].copy_from_slice(&self.bytes_per_block.to_le_bytes());
+        b[14..18].copy_from_slice(&self.play_begin.to_le_bytes());
+        b[18..22].copy_from_slice(&self.play_length.to_le_bytes());
+        b[22..26].copy_from_slice(&self.loop_begin.to_le_bytes());
+        b[26..30].copy_from_slice(&self.loop_length.to_le_bytes());
+        b[30] = self.loop_count;
+        b[31] = self.encoder_version;
+        b[32..34].copy_from_slice(&self.block_count.to_le_bytes());
+        b
     }
 
     pub fn swap_bytes(&self) -> Self {

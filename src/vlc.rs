@@ -51,6 +51,39 @@ impl Vlc {
         }
     }
 
+    /// Build from explicit (code, length) pairs in FFmpeg table order, as
+    /// `vlc_init` does with literal huffcodes; the symbol for entry `i` is
+    /// `i as i32`. Codes are the MSB-first bit patterns of `length` bits.
+    pub fn from_codes(codes: &[u32], lens: &[u8]) -> Self {
+        assert_eq!(codes.len(), lens.len());
+        let mut entries: Vec<(u32, u8, i32)> = codes
+            .iter()
+            .zip(lens.iter())
+            .enumerate()
+            .map(|(i, (&c, &l))| {
+                assert!((1..=32).contains(&l));
+                (c << (32 - l), l, i as i32)
+            })
+            .collect();
+        entries.sort_by_key(|&(start, _, _)| start);
+
+        let starts: Vec<u32> = entries.iter().map(|e| e.0).collect();
+        let lens: Vec<u8> = entries.iter().map(|e| e.1).collect();
+        let syms: Vec<i32> = entries.iter().map(|e| e.2).collect();
+
+        let mut lut = vec![(0i32, 0u8); 1 << LUT_BITS];
+        for i in 0..starts.len() {
+            if (lens[i] as u32) <= LUT_BITS {
+                let base = starts[i] >> (32 - LUT_BITS);
+                let count = 1u32 << (LUT_BITS - lens[i] as u32);
+                for j in 0..count {
+                    lut[(base + j) as usize] = (syms[i], lens[i]);
+                }
+            }
+        }
+        Vlc { starts, lens, syms, lut }
+    }
+
     /// Decode one symbol, consuming its bits.
     #[inline]
     pub fn get(&self, br: &mut BitReader) -> i32 {
