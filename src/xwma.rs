@@ -157,6 +157,12 @@ pub fn decode_wma_packets(
             }
         }
     }
+    // EOF reservoir: the dpds table counts the frame the last packet left behind
+    if let Ok(Some(samples)) = dec.decode_reservoir_tail() {
+        for (ch, s) in samples.into_iter().enumerate() {
+            planes[ch].extend_from_slice(&s);
+        }
+    }
     // EOF flush: emit the delayed overlap tail
     if let Ok(samples) = dec.decode_superframe(&[]) {
         for (ch, s) in samples.into_iter().enumerate() {

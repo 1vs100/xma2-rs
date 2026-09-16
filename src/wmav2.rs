@@ -1035,6 +1035,32 @@ impl WmaDecoder {
         }
     }
 
+    /// Decode the frame the last packet left in the bit reservoir, if any.
+    pub fn decode_reservoir_tail(&mut self) -> Result<Option<Vec<Vec<f32>>>> {
+        if !self.use_bit_reservoir || self.last_superframe_len == 0 {
+            return Ok(None);
+        }
+
+        let mut samples: Vec<Vec<f32>> = (0..self.channels)
+            .map(|_| vec![0f32; self.frame_len])
+            .collect();
+        let bitsize = self.last_superframe_len * 8;
+        let resv = std::mem::take(&mut self.last_superframe);
+        let mut gb = BitReader::with_bit_size(&resv, bitsize);
+
+        if self.last_bitoffset > 0 {
+            gb.skip(self.last_bitoffset);
+        }
+
+        let result = self.decode_frame(&mut gb, &mut samples, 0);
+
+        self.last_superframe = resv;
+        self.last_superframe_len = 0;
+        result?;
+
+        Ok(Some(samples))
+    }
+
     /// Decode one frame of frame_len samples into `samples` at `offset`.
     fn decode_frame(
         &mut self,
