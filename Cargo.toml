@@ -6,3 +6,9 @@ description = "Pure-Rust XMA2 and xWMA audio decoder (WMA Pro / WMA v1/v2 cores 
 license = "LGPL-2.1-or-later"
 
 [dependencies]
+# XMA2 encoding through wmv9's WMA Pro encoder. wmv9 is GPL-3.0-or-later,
+# so builds with this feature are too.
+wmv9 = { git = "https://github.com/1vs100/wmv9", branch = "xma-frames", default-features = false, optional = true }
+
+[features]
+encode = ["dep:wmv9"]

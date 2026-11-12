@@ -90,6 +90,16 @@ let file = xma2_rs::parse_xwma(&buf)?;
 let audio = xma2_rs::decode_xwma(&file)?;
 ```
 
+
+## Encoding
+
+With the `encode` feature, `encode::encode` turns 16-bit PCM into XMA2 packets, laid out the way Microsoft's encoder lays them out, plus a seek table per 64 KB block. It uses the WMA Pro encoder of [wmv9](https://github.com/1vs100/wmv9). wmv9 is GPL-3.0-or-later, so a build with this feature is too.
+
+```rust
+let packed = xma2_rs::encode::encode(&pcm, 48000, 1, 12000)?; // 96 kbit/s mono
+std::fs::write("sound.xma2", &packed.data)?;
+```
+
 ## Output
 
 Decoding produces planar `f32` — one `Vec<f32>` per channel, all the same length:

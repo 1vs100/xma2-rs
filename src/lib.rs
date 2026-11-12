@@ -7,6 +7,9 @@
 
 mod bits;
 pub mod formats;
+pub mod pack;
+#[cfg(feature = "encode")]
+pub mod encode;
 mod imdct;
 mod tables;
 mod vlc;
