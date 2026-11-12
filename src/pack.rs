@@ -69,10 +69,11 @@ impl Block {
             .count()
     }
 
-    /// Sets each frame's trailer bit: 1 when the next frame follows it directly.
+    /// Sets each frame's trailer bit: 1 when the next frame follows it in
+    /// the same packet.
     fn set_trailers(&mut self, ends: &[usize]) {
         for (i, &end) in ends.iter().enumerate() {
-            self.bits[end - 1] = self.starts.get(i + 1) == Some(&end);
+            self.bits[end - 1] = end % PAYLOAD_BITS != 0 && self.starts.get(i + 1) == Some(&end);
         }
     }
 
@@ -152,9 +153,31 @@ pub fn pack(frames: &[Vec<bool>]) -> Result<Packed, PackError> {
 mod tests {
     use super::*;
 
-    fn header(data: &[u8], packet: usize) -> (u32, u32, u32, u32) {
+    #[derive(Debug, PartialEq, Eq)]
+    struct Header {
+        frames: u32,
+        previous: u32,
+        metadata: u32,
+        skip: u32,
+    }
+
+    fn header(data: &[u8], packet: usize) -> Header {
         let h = u32::from_be_bytes(data[packet * PACKET_BYTES..][..4].try_into().unwrap());
-        (h >> 26, h >> 11 & 0x7fff, h >> 8 & 7, h & 0xff)
+        Header {
+            frames: h >> 26,
+            previous: h >> 11 & 0x7fff,
+            metadata: h >> 8 & 7,
+            skip: h & 0xff,
+        }
+    }
+
+    fn starts(frames: u32, previous: u32) -> Header {
+        Header {
+            frames,
+            previous,
+            metadata: METADATA,
+            skip: 0,
+        }
     }
 
     fn frame(bits: usize) -> Vec<bool> {
@@ -166,10 +189,10 @@ mod tests {
         let packed = pack(&vec![frame(5000); 5]).unwrap();
         assert_eq!(packed.data.len(), 2 * PACKET_BYTES);
         // Frames start at 0, 5000, 10000 and 15000; the fourth ends at 20000.
-        assert_eq!(header(&packed.data, 0), (4, 0, 1, 0));
+        assert_eq!(header(&packed.data, 0), starts(4, 0));
         assert_eq!(
             header(&packed.data, 1),
-            (1, (20000 - PAYLOAD_BITS) as u32, 1, 0)
+            starts(1, (20000 - PAYLOAD_BITS) as u32)
         );
         assert_eq!(packed.samples, Samples(5 * 512));
         assert_eq!(packed.seek_table, vec![Samples(5 * 512)]);
@@ -196,7 +219,7 @@ mod tests {
         frames.push(frame(PAYLOAD_BITS));
         let packed = pack(&frames).unwrap();
         assert_eq!(packed.data.len(), (PACKETS_PER_BLOCK + 1) * PACKET_BYTES);
-        assert_eq!(header(&packed.data, PACKETS_PER_BLOCK), (1, 0, 1, 0));
+        assert_eq!(header(&packed.data, PACKETS_PER_BLOCK), starts(1, 0));
         assert_eq!(
             packed.seek_table,
             vec![Samples(47 * 512), Samples(48 * 512)]
@@ -204,10 +227,20 @@ mod tests {
     }
 
     #[test]
+    fn a_frame_ending_at_a_packet_end_has_trailer_0() {
+        // Decoders take a trailer of 1 to mean the next frame follows in the
+        // same packet, and would read the next header as its length.
+        let packed = pack(&[frame(PAYLOAD_BITS), frame(100)]).unwrap();
+        let last = PACKET_BYTES - 1;
+        assert_eq!(packed.data[last] & 1, 0);
+        assert_eq!(header(&packed.data, 1), starts(1, 0));
+    }
+
+    #[test]
     fn a_packet_starts_at_most_63_frames() {
         let packed = pack(&vec![frame(40); 64]).unwrap();
-        assert_eq!(header(&packed.data, 0).0, 63);
-        assert_eq!(header(&packed.data, 1), (1, 0, 1, 0));
+        assert_eq!(header(&packed.data, 0).frames, 63);
+        assert_eq!(header(&packed.data, 1), starts(1, 0));
     }
 
     #[test]
